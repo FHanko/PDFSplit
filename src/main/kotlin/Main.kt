@@ -1,4 +1,5 @@
 import org.apache.pdfbox.Loader
+import org.apache.pdfbox.multipdf.PDFMergerUtility
 import org.apache.pdfbox.pdmodel.PDDocument
 import java.io.File
 import kotlin.system.exitProcess
@@ -27,7 +28,7 @@ fun main(args: Array<String>) {
     //
 
     val pageList = mutableListOf<Pair<Int, IntRange>>()
-    val valid = Regex("(\\d+):((?:-?\\d+(~-?)?\\d*,)*)(-?\\d+(~-?)?\\d*)") // (\d+):((?:\d+~?\d*,)*)(\d+~?\d*)
+    val valid = Regex("(\\d+)(:((?:-?\\d+(~-?)?\\d*,)*)(-?\\d+(~-?)?\\d*))?") // (\d+):((?:\d+~?\d*,)*)(\d+~?\d*)
     args.slice(fileCount..<args.size).forEach { arg ->
         if (!valid.matches(arg)) {
             println("Argument reading error.")
@@ -35,6 +36,11 @@ fun main(args: Array<String>) {
         }
 
         val fileNum = arg.split(':')[0].toInt()
+        if (arg.split(':').size == 1) {
+            pageList.add(fileNum to 1..docMap[fileNum]!!.numberOfPages)
+            return@forEach
+        }
+
         arg.split(':', ',').drop(1).forEach { sep ->
             var range = sep.split('~').map { it.toInt() }
             // Allow 0 as last page and negative page numbers.
@@ -45,10 +51,13 @@ fun main(args: Array<String>) {
     }
     println("Adding pages $pageList.")
 
+    val merger = PDFMergerUtility()
     pageList.forEach { pageListItem ->
+        val temp = PDDocument()
         for (n in pageListItem.second.first toward pageListItem.second.last) {
-            outputDoc.addPage(docMap[pageListItem.first]!!.getPage(n - 1))
+            temp.importPage(docMap[pageListItem.first]!!.getPage(n - 1))
         }
+        merger.appendDocument(outputDoc, temp)
     }
 
     println("Saving output to ${output.path}.")
